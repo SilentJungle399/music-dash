@@ -24,3 +24,6 @@ pnpm-debug.log*
 
 _src
 __pycache__
+Lavalink.jar
+logs
+_main.py
