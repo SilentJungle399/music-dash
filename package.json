@@ -6,7 +6,7 @@
 		"serve": "vue-cli-service serve",
 		"build": "vue-cli-service build",
 		"lint": "vue-cli-service lint",
-		"bot": "py src/bot/main.py"
+		"bot": "python3 src/bot/main.py"
 	},
 	"dependencies": {
 		"core-js": "^3.6.5",
