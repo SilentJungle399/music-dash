@@ -10,6 +10,12 @@ class Event:
 	async def reply(self, event, data):
 		await self.socket.emit(event, data, to=self.sid)
 
+	def __repr__(self) -> str:
+		return f"<Event sid={self.sid} data={self.data}>"
+
+	def __str__(self) -> str:
+		return self.__repr__()
+
 class Server(socketio.AsyncServer):
 	def __init__(self, *args, **kwargs):
 		super().__init__(*args, **kwargs)
@@ -47,8 +53,6 @@ class Server(socketio.AsyncServer):
 			return
 
 		pos = event.data["progress"]*player.current.duration/100
-
-		print(pos)
 
 		await player.seek(pos)
 
@@ -110,6 +114,29 @@ class Server(socketio.AsyncServer):
 		else:
 			player.add(track = event.data["song"], requester = event.data["user"])
 
+		queue = []
+		for track in player.queue:
+			queue.append(self.bot.getrawtrack(track))
+
+		for i in channel.members:
+			session = self.bot.sessions.get(str(i.id))
+			if session:
+				await self.emit('newQueue', {
+					"queue": queue,
+				}, to = session["socketid"])
+
+	async def on__removeSong(self, event: Event):
+		self.log('Removing song', event.data)
+		player: DefaultPlayer = self.bot.lavalink.player_manager.get(int(event.data["guild"]["id"]))
+		if not player:
+			return
+
+		player.queue.pop(event.data["song"])
+
+		channel = self.bot.get_channel(int(event.data["channel"]["id"]))
+		
+		await self.bot.sync_queue(player, channel)
+
 	async def on__verifyUser(self, event: Event):
 		self.log('Verify user', event.data)
 		user = self.bot.get_user(event.data['user'])
@@ -131,7 +158,7 @@ class Server(socketio.AsyncServer):
 						})
 					else:
 						player: lavalink.DefaultPlayer = self.bot.lavalink.player_manager.get(int(guild.id))
-						if not player:
+						if not player or not player.channel_id:
 							player = self.bot.lavalink.player_manager.create(int(guild.id))
 							retsong = None
 							queue = []
@@ -190,6 +217,21 @@ class Server(socketio.AsyncServer):
 							}
 						})
 						
+
+		self.bot.sessions[str(event.data['user'])] = {
+			"socketid": event.sid,
+			"sid": event.data['sid'],
+			"guild": {
+				"id": None,
+				"name": None,
+				"icon": None,
+			},
+			"voice": {
+				"id": None,
+				"name": None,
+			},
+		}
+		
 		return await event.reply("playerUpdate", {
 			'valid': True,
 			"permissions": True,

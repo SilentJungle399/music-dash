@@ -7,7 +7,7 @@ import store from "./handlers/store";
 
 Vue.use(
 	new VueSocketIO({
-		connection: io("http://localhost:3000"),
+		connection: io(),
 	})
 );
 

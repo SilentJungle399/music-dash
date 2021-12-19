@@ -39,6 +39,7 @@ class Client(commands.Bot):
 			reconnection_delay = 2,
 			cors_allowed_origins = [
 				"http://localhost:8080",
+				"http://vps.silentjungle.tk:8080"
 			],
 		)
 
@@ -61,6 +62,9 @@ class Client(commands.Bot):
 		while True:
 			for i in self.sessions:
 				i = self.sessions[i]
+				if not i["voice"]["id"]:
+					continue
+
 				player: DefaultPlayer = self.lavalink.player_manager.get(int(i["guild"]["id"]))
 				channel = self.get_channel(int(i["voice"]["id"]))
 				
@@ -71,36 +75,41 @@ class Client(commands.Bot):
 						"position": increase,
 					}, to = i["socketid"])
 
-					print(increase)
-				
 			await asyncio.sleep(0.5)
+
+	async def sync_queue(self, player, channel):
+		queue = []
+		for track in player.queue:
+			queue.append(self.getrawtrack(track))
+
+		for i in channel.members:
+			session = self.sessions.get(str(i.id))
+			if session:
+				await self.socket.emit('newQueue', {
+					"queue": queue,
+				}, to = session["socketid"])
 
 	async def on_voice_state_update(self, member, before, after):
 		if member.id == self.user_id:
 			return
-		
-		if after.channel is None:
-			return
 
-		player = self.lavalink.player_manager.get(int(after.channel.guild.id))
 		uses = self.sessions.get(str(member.id))
 		if uses:
-			if not after.channel:
-				self.sessions.pop(str(member.id))
-			else:
-				self.sessions.pop(str(member.id))
-				event = sockevents.Event(
-					uses["socketid"], 
-					{
-						"sid": uses["sid"],
-						"user": str(member.id),
-					},
-					self.socket
-				)
+			self.sessions.pop(str(member.id))
+			event = sockevents.Event(
+				uses["socketid"], 
+				{
+					"sid": uses["sid"],
+					"user": str(member.id),
+				},
+				self.socket
+			)
 
-				await self.socket.on__verifyUser(event)
+			await self.socket.on__verifyUser(event)
 
-		if after.channel and player.channel_id == after.channel.id:
+		player = self.lavalink.player_manager.get(int(after.channel.guild.id) if after.channel else int(before.channel.guild.id))
+
+		if player and after.channel and player.channel_id == after.channel.id:
 			for i in after.channel.members:
 				session = self.sessions.get(str(i.id))
 				await self.socket.emit("newMemberJoin", {
@@ -109,7 +118,7 @@ class Client(commands.Bot):
 					"pfp": str(i.avatar_url),
 					"discrim": str(i.discriminator),
 				}, to = session["socketid"])
-		elif not after.channel or (before.channel and player.channel_id == before.channel.id):
+		elif before.channel and before.channel.id == player.channel_id:
 			for i in before.channel.members:
 				session = self.sessions.get(str(i.id))
 				await self.socket.emit("newMemberLeave", {

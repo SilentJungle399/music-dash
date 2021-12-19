@@ -40,7 +40,6 @@ export default {
 	},
 	methods: {
 		mousemove(event) {
-			console.log(1);
 			this.$store.commit("setProgress", (event.clientX * 100) / window.innerWidth);
 		},
 		showPeg(ev) {
@@ -49,7 +48,6 @@ export default {
 			}
 		},
 		seek(event) {
-			console.log(2);
 			if (!this.draggable) return;
 			const perc = (event.clientX * 100) / window.innerWidth;
 

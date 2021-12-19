@@ -140,7 +140,7 @@ export default {
 		},
 		connect() {
 			console.log("Connected to socket!");
-			this.$store.commit("setUser", "738362958253522976");
+			this.$store.commit("setUser", "505606993034215434");
 			this.$store.commit("switchTab", "queue");
 			this.$store.commit("setSid", this.random(40));
 

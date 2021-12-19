@@ -4,7 +4,7 @@ from classes import CustomPlayer
 
 class LavaClient(lavalink.Client):
 	def __init__(self, bot):
-		super().__init__(bot.user_id, player=CustomPlayer)
+		super().__init__(bot.user_id, player=CustomPlayer, connect_back=True)
 		
 		self.bot = bot
 
@@ -32,6 +32,8 @@ class LavaClient(lavalink.Client):
 						"track": self.bot.getrawtrack(event.track),
 					}, to = session["socketid"])
 
+			await self.bot.sync_queue(event.player, channel)
+
 		elif isinstance(event, lavalink.events.TrackEndEvent):
 			channel = self.bot.get_channel(int(event.player.channel_id))
 
@@ -40,3 +42,5 @@ class LavaClient(lavalink.Client):
 
 				if session:
 					await self.bot.socket.emit('TrackEnd', {}, to = session["socketid"])
+
+			await self.bot.sync_queue(event.player, channel)

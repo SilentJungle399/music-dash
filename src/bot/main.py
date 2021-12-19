@@ -1,7 +1,7 @@
 from client import Client
 import time
 
-bot = Client(token = "NzQwNTY4NzY2MTk4NDQ4MTkw.Xyq6aA.ryjwwbMeF8rUnjBJwZiLP3_uaAk")
+bot = Client(token = "ODY1MjE5MDUzNTM0OTY5OTA2.YPA0CQ.eqjogIGLFkkDlJGd92GHCntWOHI")
 
 @bot.command()
 async def test(ctx):
@@ -17,5 +17,9 @@ async def ping(ctx):
 	t2 = time.monotonic()
 
 	await ctx.send(f"Pong! `{round((t2 - t1) * 1000)}ms`")
+
+@bot.command()
+async def pr(ctx):
+	print(bot.sessions)
 
 bot.initiate()

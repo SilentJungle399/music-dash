@@ -6,10 +6,12 @@
 		"serve": "vue-cli-service serve",
 		"build": "vue-cli-service build",
 		"lint": "vue-cli-service lint",
+		"exp": "lt --port 8080",
 		"bot": "python3 src/bot/main.py"
 	},
 	"dependencies": {
 		"core-js": "^3.6.5",
+		"localtunnel": "^2.0.2",
 		"nprogress": "^0.2.0",
 		"socket.io-client": "^4.4.0",
 		"vue": "^2.6.11",

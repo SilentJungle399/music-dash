@@ -4,6 +4,8 @@ import typing
 from time import time
 from random import randrange
 
+
+
 class Session(typing.TypedDict):
 	socketid: str
 	sid: str

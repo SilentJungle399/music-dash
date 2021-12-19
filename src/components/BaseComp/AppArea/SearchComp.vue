@@ -1,5 +1,11 @@
 <template>
-	<input placeholder="Search for songs..." type="text" class="searchinput" v-model="searchinput" @keypress.enter="initSearch" />
+	<input
+		placeholder="Search for songs..."
+		type="text"
+		class="searchinput"
+		v-model="searchinput"
+		@keypress.enter="initSearch"
+	/>
 </template>
 
 <script>
@@ -14,8 +20,8 @@ export default {
 	},
 	methods: {
 		initSearch() {
-			if (this.$store.state.joinedParty) {
-				return this.$parent.$emit("makealert", "You do not have permission to add songs in this party!");
+			if (!this.$store.state.voice.guild.id) {
+				return this.$parent.$emit("makealert", "You are not in a voice channel.");
 			}
 			const emitData = {
 				song: this.searchinput,

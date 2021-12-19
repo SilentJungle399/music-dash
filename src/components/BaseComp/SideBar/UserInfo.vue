@@ -3,15 +3,33 @@
 		<table class="UserInfotable">
 			<tr>
 				<td rowspan="2">
-					<img :src="$store.state.voice.guild.icon" class="userpfp" alt="" />
+					<img
+						:src="
+							$store.state.voice.guild.icon
+								? $store.state.voice.guild.icon
+								: 'https://cdn.discordapp.com/icons/526000157620437014/05c5487e54b4623a129134e121e05636.webp'
+						"
+						class="userpfp"
+						alt=""
+					/>
 				</td>
 				<td class="tdalign">
-					<span class="username">{{ $store.state.voice.guild.name ? $store.state.voice.guild.name : "Not connected" }}</span>
+					<span class="username">{{
+						$store.state.voice.guild.name
+							? $store.state.voice.guild.name
+							: "Not connected"
+					}}</span>
 				</td>
 			</tr>
 			<tr>
 				<td class="tdalign">
-					<span class="discrim">#{{ $store.state.voice.channel.name ? $store.state.voice.channel.name : "invalid-channel " }}</span>
+					<span class="discrim"
+						>#{{
+							$store.state.voice.channel.name
+								? $store.state.voice.channel.name
+								: "invalid-channel "
+						}}</span
+					>
 				</td>
 			</tr>
 		</table>
