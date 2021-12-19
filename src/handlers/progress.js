@@ -1,4 +1,4 @@
-import NProgress from 'nprogress';
+import NProgress from "nprogress";
 
 NProgress.configure({
 	template: `
@@ -7,23 +7,23 @@ NProgress.configure({
 			<div class="peg"></div>
 		</div>
 	</div>
-	`
-})
+	`,
+});
 
-const background = "#151516";
+const background = "#00162a";
 
 export default {
 	start(state) {
-		NProgress.start()
+		NProgress.start();
 		if (!state) {
-			document.getElementById("progressbar").style.background = background
+			document.getElementById("progressbar").style.background = background;
 		} else if (state === "load") {
-			document.getElementById("progressbar").style.background = "transparent"
+			document.getElementById("progressbar").style.background = "transparent";
 		} else if (state === "page") {
-			document.getElementById("progressbar").style.background = background
+			document.getElementById("progressbar").style.background = background;
 		}
 	},
 	done() {
-		NProgress.done()
-	}
-}
+		NProgress.done();
+	},
+};

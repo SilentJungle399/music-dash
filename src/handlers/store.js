@@ -20,19 +20,41 @@ export default new Vuex.Store({
 			track: null,
 		},
 		voice: {
-			guild: null,
-			channel: null,
+			guild: {
+				id: null,
+				name: null,
+				icon: null,
+			},
+			channel: {
+				id: null,
+				name: null,
+			},
 		},
 	},
 	mutations: {
 		setUser(state, user) {
 			state.user = user;
 		},
+		setInit(state, data) {
+			state.player = {
+				paused: data.state.paused,
+				controls: {
+					volume: data.state.volume,
+					shuffle: data.state.shuffle,
+					repeat: data.state.repeat,
+				},
+				track: data.current,
+			};
+			state.queue = data.queue;
+			state.progress = data.state.progress;
+			state.sid = data.sid;
+			state.voice = data.voice;
+		},
 		setSid(state, sid) {
 			state.sid = sid;
 		},
-		switchTab(state) {
-			state.tab = "queue" === state.tab ? "search" : "queue";
+		switchTab(state, tab) {
+			state.tab = tab;
 		},
 		setProgress(state, progress) {
 			state.progress = progress;
@@ -43,11 +65,11 @@ export default new Vuex.Store({
 		setVolume(state, volume) {
 			state.player.controls.volume = volume;
 		},
-		setShuffle(state, shuffle) {
-			state.player.controls.shuffle = shuffle;
+		togShuffle(state) {
+			state.player.controls.shuffle = !state.player.controls.shuffle;
 		},
-		setRepeat(state, repeat) {
-			state.player.controls.repeat = repeat;
+		togRepeat(state) {
+			state.player.controls.repeat = !state.player.controls.repeat;
 		},
 		setTrack(state, track) {
 			state.player.track = track;

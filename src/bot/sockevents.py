@@ -1,5 +1,5 @@
-import discord
-import socketio, logging, json, lavalink
+from lavalink.models import DefaultPlayer
+import socketio, logging, json, lavalink, discord, asyncio
 
 class Event:
 	def __init__(self, sid, data, socket: 'Server'):
@@ -40,6 +40,76 @@ class Server(socketio.AsyncServer):
 	async def pre__disconnect(self, sid):
 		self.log('Disconnected client', sid)
 
+	async def on__seek(self, event: Event):
+		self.log('Seek', event.data)
+		player: DefaultPlayer = self.bot.lavalink.player_manager.get(int(event.data["guild"]["id"]))
+		if not player:
+			return
+
+		pos = event.data["progress"]*player.current.duration/100
+
+		print(pos)
+
+		await player.seek(pos)
+
+	async def on__searchSong(self, event: Event):
+		self.log('Searching song', event.data)
+		player = self.bot.lavalink.player_manager.get(int(event.data["guild"]["id"]))
+		if not player:
+			player = self.bot.lavalink.player_manager.create(int(event.data["guild"]["id"]))
+
+		songs = await player.node.get_tracks("ytsearch:"+str(event.data["song"]))
+
+		await event.reply('songResult', {
+			"songs": songs['tracks'],
+			"keyword": event.data["song"]
+		})
+
+	async def on__FastForwardReq(self, event: Event):
+		self.log('Fast forward request', event.data)
+		player: DefaultPlayer = self.bot.lavalink.player_manager.get(int(event.data["guild"]["id"]))
+		if not player:
+			return
+
+		await player.seek(player.position + event.data["ff"]*1000)
+
+	async def on__PlayPauseReq(self, event: Event):
+		self.log('Play/Pause request', event.data)
+		player: DefaultPlayer = self.bot.lavalink.player_manager.get(int(event.data["guild"]["id"]))
+		if not player:
+			return
+
+		await player.set_pause(event.data["state"])
+
+		channel = self.bot.get_channel(int(event.data["channel"]["id"]))
+		user = self.bot.get_user(int(event.data["user"]))
+		user: discord.User = user if user else (await self.bot.fetch_user(int(event.data["user"])))
+		
+		for i in channel.members:
+			session = self.bot.sessions.get(str(i.id))
+			if session:
+				await self.emit('playPause', {
+					"state": event.data["state"],
+					"user": str(user.name) + "#" + str(user.discriminator),
+				}, to = session["socketid"])
+
+	async def on__playSongReq(self, event: Event):
+		self.log('Playing song', event.data)
+		player: DefaultPlayer = self.bot.lavalink.player_manager.get(int(event.data["guild"]["id"]))
+		if not player:
+			player = self.bot.lavalink.player_manager.create(int(event.data["guild"]["id"]))
+
+		channel = self.bot.get_channel(int(event.data["channel"]["id"]))
+		guild = self.bot.get_guild(int(event.data["guild"]["id"]))
+
+		if not player.is_connected:
+			await guild.change_voice_state(channel=channel)
+
+		if not player.is_playing:
+			await player.play(event.data["song"], channel = channel, guild = guild)
+		else:
+			player.add(track = event.data["song"], requester = event.data["user"])
+
 	async def on__verifyUser(self, event: Event):
 		self.log('Verify user', event.data)
 		user = self.bot.get_user(event.data['user'])
@@ -60,24 +130,27 @@ class Server(socketio.AsyncServer):
 							"permissions": False
 						})
 					else:
-						player: lavalink.DefaultPlayer = self.bot.lavalink.player_manager.get(guild.id)
+						player: lavalink.DefaultPlayer = self.bot.lavalink.player_manager.get(int(guild.id))
 						if not player:
-							player = self.bot.lavalink.player_manager.create(guild.id)
-							player.store('channel', member.voice.channel.id)
-							cursong = player.current
-							if cursong:
-								retsong = await self.bot.gettrackdata(player, cursong)
-							else:
-								retsong = None
-							queue = []
-							for song in player.queue:
-								queue.append(await self.bot.gettrackdata(player, song))
-
-						else:
+							player = self.bot.lavalink.player_manager.create(int(guild.id))
 							retsong = None
 							queue = []
+						else:
+							channel = guild.get_channel(int(player.channel_id))
+							if channel.id != member.voice.channel.id:
+								retsong = None
+								queue = []
+							else:
+								cursong = player.current
+								if cursong:
+									retsong = self.bot.getrawtrack(cursong)
+								else:
+									retsong = None
+								queue = []
+								for song in player.queue:
+									queue.append(self.bot.getrawtrack(song))
 
-						self.bot.sessions[event.data['user']] = {
+						self.bot.sessions[str(event.data['user'])] = {
 							"socketid": event.sid,
 							"sid": event.data['sid'],
 							"guild": {
@@ -102,15 +175,15 @@ class Server(socketio.AsyncServer):
 								"volume": player.volume,
 								"repeat": player.repeat,
 								"shuffle": player.shuffle,
-								"position": player.position,
+								"progress": player.position*100/player.current.duration if player.current else 0
 							},
 							"voice": {
 								"channel": {
-									"id": member.voice.channel.id,
+									"id": str(member.voice.channel.id),
 									"name": member.voice.channel.name,
 								},
 								"guild": {
-									"id": guild.id,
+									"id": str(guild.id),
 									"name": guild.name,
 									"icon": "https://cdn.discordapp.com" + str(guild.icon_url._url),
 								},
@@ -128,7 +201,7 @@ class Server(socketio.AsyncServer):
 				"volume": 0,
 				"repeat": False,
 				"shuffle": False,
-				"position": 0,
+				"progress": 0,
 			},
 			"voice": {
 				"channel": {

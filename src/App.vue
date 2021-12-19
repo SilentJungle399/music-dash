@@ -2,12 +2,17 @@
 	<div id="app">
 		<div class="supported" v-if="!unsupported">
 			<!-- Application here -->
-			<!-- <Notification :msg="notif"></Notification>
-			<ServerInfo></ServerInfo>
-			<SearchComp></SearchComp>
-			<SidePane></SidePane>
-			<MainArea></MainArea>
-			<PlayerSection :preTrack="track"></PlayerSection> -->
+			<Notification @makealert="makealert" :msg="notif"></Notification>
+			<div class="leftsidebar">
+				<UserInfo @makealert="makealert"></UserInfo>
+				<hr class="sidepanedivider" />
+				<SidePane @makealert="makealert"></SidePane>
+			</div>
+
+			<div class="apparea">
+				<MainArea ref="mainarea" @makealert="makealert"></MainArea>
+			</div>
+			<PlayerSection @makealert="makealert" :preTrack="track"></PlayerSection>
 		</div>
 		<div v-else class="unsupported">
 			<h3>Unfortunately, your device is not supported for the webapp.</h3>
@@ -16,23 +21,21 @@
 </template>
 
 <script>
-import Notification from "@/components/AppSection/Notification.vue";
+import Notification from "@/components/utils/Notification.vue";
 import progress from "@/handlers/progress.js";
-// import ServerInfo from "@/components/BaseComp/ServerInfo.vue";
-// import SearchComp from "@/components/BaseComp/SearchComp.vue";
-// import SidePane from "@/components/BaseComp/SidePane.vue";
-// import MainArea from "@/components/BaseComp/MainArea.vue";
-// import PlayerSection from "@/components/BaseComp/PlayerSection.vue";
+import UserInfo from "@/components/BaseComp/SideBar/UserInfo.vue";
+import SidePane from "@/components/BaseComp/SideBar/SidePane.vue";
+import MainArea from "@/components/BaseComp/AppArea/MainArea.vue";
+import PlayerSection from "@/components/BaseComp/PlayerSection.vue";
 
 export default {
 	name: "App",
 	components: {
-		// Notification,
-		// ServerInfo,
-		// SearchComp,
-		// SidePane,
-		// MainArea,
-		// PlayerSection,
+		Notification,
+		UserInfo,
+		SidePane,
+		MainArea,
+		PlayerSection,
 	},
 	data() {
 		return {
@@ -40,6 +43,7 @@ export default {
 			curnotif: null,
 			unsupported: false,
 			loggedin: false,
+			auexists: false,
 			track: null,
 		};
 	},
@@ -60,10 +64,11 @@ export default {
 		checksize() {
 			if (window.innerWidth > 1000) {
 				if (this.unsupported) {
-					progress.start("load");
+					progress.done();
 				}
 				this.unsupported = false;
 			} else {
+				progress.start("load");
 				this.unsupported = true;
 			}
 		},
@@ -87,9 +92,11 @@ export default {
 		// 	}
 		// }
 		progress.start("page");
-		this.$store.state.user = "738362958253522976";
-		this.$store.state.tab = "queue";
-		this.$store.state.sid = this.random(40);
+
+		this.$store.commit("setUser", "738362958253522976");
+		this.$store.commit("switchTab", "queue");
+		this.$store.commit("setSid", this.random(40));
+
 		this.$socket.emit("verifyUser", {
 			user: this.$store.state.user,
 			sid: this.$store.state.sid,
@@ -99,7 +106,7 @@ export default {
 		} else {
 			this.unsupported = true;
 		}
-		progress.done();
+
 		// if (this.$route.fullPath === "/") {
 		// 	progress.done();
 		// }
@@ -125,11 +132,25 @@ export default {
 		},
 		playerUpdate(data) {
 			console.log(`Recieved:`, "playerUpdate", data);
-			// this.$store.state.guild = data.guild;
-			// this.$store.state.player = data.player.status;
-			// this.$store.state.queue = data.player.queue;
-			// this.$store.state.vc = data.voice;
-			// this.track = data.player.song;
+			this.$store.commit("setInit", data);
+			progress.done();
+		},
+		playPause(data) {
+			this.makealert(`Song ${data.state ? "paused" : "resumed"} by: ${data.user}`);
+		},
+		connect() {
+			console.log("Connected to socket!");
+			this.$store.commit("setUser", "738362958253522976");
+			this.$store.commit("switchTab", "queue");
+			this.$store.commit("setSid", this.random(40));
+
+			this.$socket.emit("verifyUser", {
+				user: this.$store.state.user,
+				sid: this.$store.state.sid,
+			});
+		},
+		disconnect() {
+			progress.start("page");
 		},
 	},
 	created() {
@@ -144,19 +165,65 @@ export default {
 <style>
 @import url("https://fonts.googleapis.com/css2?family=Rubik&display=swap");
 
+:root {
+	--sections: #000b1b;
+	--body: #00162a;
+	--player-section: #001122;
+}
+
 body {
-	background: #1b1b1b;
+	background: var(--body);
 	color: rgb(255, 255, 255);
 	font-family: "Rubik", sans-serif;
+	user-select: none;
+}
+
+.sidepanedivider {
+	position: relative;
+	top: 60px;
+	background: #191944;
+	border-color: #191944;
+	height: 2px;
+	width: 90%;
+}
+
+.leftsidebar {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 375px;
+	background: var(--sections);
+	height: calc(100% - 100px);
+}
+
+.apparea {
+	position: absolute;
+	top: 0;
+	left: 375px;
+	width: calc(100% - 375px);
+	background: var(--body);
+	height: calc(100% - 100px);
+}
+
+@media only screen and (max-width: 1300px) {
+	.leftsidebar {
+		width: 300px;
+	}
+
+	.apparea {
+		left: 300px;
+		width: calc(100% - 300px);
+	}
 }
 
 .progressing {
 	height: 100%;
 	position: absolute;
 	width: 100%;
+	z-index: 10;
 	top: 0;
 	left: 0;
-	background-color: #151516;
+	background-color: var(--body);
 }
 ::-webkit-scrollbar {
 	width: 7px;
@@ -165,18 +232,18 @@ body {
 
 /* Track */
 ::-webkit-scrollbar-track {
-	background: rgb(0 26 26 / 1);
+	background: rgb(13 7 43);
 	border-radius: 10px;
 }
 
 /* Handle */
 ::-webkit-scrollbar-thumb {
-	background: rgb(0 38 38 / 1);
+	background: rgb(9 26 58);
 	border-radius: 10px;
 }
 
 /* Handle on hover */
 ::-webkit-scrollbar-thumb:hover {
-	background: rgb(0, 0, 0);
+	background: rgb(0 19 56);
 }
 </style>

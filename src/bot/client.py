@@ -1,6 +1,9 @@
+from typing import Dict
 from discord.ext import commands
 import discord
-import logging, coloredlogs, sockevents, lavaclient, base64, lavalink
+import logging, coloredlogs, sockevents, lavaclient, base64, lavalink, asyncio, time
+from classes import Session
+from lavalink.models import DefaultPlayer
 from aiohttp import web
 
 coloredlogs.install(
@@ -21,9 +24,11 @@ class Client(commands.Bot):
 		intents = discord.Intents.default()
 		intents.members = True
 
-		super().__init__(command_prefix='?', token = token, intents = intents)
+		super().__init__(command_prefix='!', token = token, intents = intents)
 
-		self.sessions = {}
+		self.load_extension("jishaku")
+
+		self.sessions: Dict[str, Session] = {}
 
 		self.lavalink = lavaclient.LavaClient(self)
 
@@ -42,6 +47,7 @@ class Client(commands.Bot):
 		aiologger.setLevel(logging.CRITICAL)
 
 		self.socket.attach(self.app)
+		self.loop.create_task(self.sync_positions())
 
 	def initiate(self):
 		self.run(self.token)
@@ -51,48 +57,67 @@ class Client(commands.Bot):
 		
 		await web._run_app(self.app, port=3000)
 
-	async def playPlayer(self, data):
-		player = self.lavalink.player_manager.get(int(data["server_id"]))
-		if not player:
-			player = self.lavalink.player_manager.create(int(data["server_id"]), endpoint=str("india"))
-		guild = self.get_guild(int(data['server_id']))
-		if not player.is_connected:
-			ch = (guild.get_member(int(data["user_id"]))).voice.channel
-			await self.get_guild(int(data["server_id"])).change_voice_state(channel=ch)
-		results = await player.node.get_tracks(data["song"])
-		tracka = results['tracks'][0]
-		track = lavalink.models.AudioTrack(tracka, int(data["user_id"]), recommended=True)
-		player.add(requester=int(data["user_id"]), track=track)
-		queue = []
-		for i in player.queue:
-			queue.append(await self.gettrackdata(player, i))
+	async def sync_positions(self):
+		while True:
+			for i in self.sessions:
+				i = self.sessions[i]
+				player: DefaultPlayer = self.lavalink.player_manager.get(int(i["guild"]["id"]))
+				channel = self.get_channel(int(i["voice"]["id"]))
+				
+				if player.current and player.channel_id and channel.id == int(player.channel_id):
+					increase = player.position*100/player.current.duration
 
-		ret = []
-		if len(ch.members) > 1:
-			for i in ch.members:
-				ret.append(str(i.id))
-		await self.socket.emit("newQueue", {
-			"queue": queue,
-			"members": ret
-		})
+					await self.socket.emit("updatePosition", {
+						"position": increase,
+					}, to = i["socketid"])
 
-		if not player.is_playing:
-			await player.play()
+					print(increase)
+				
+			await asyncio.sleep(0.5)
 
-	async def get_tracks(self, data):
-		player = self.lavalink.player_manager.get(int(data["server_id"]))
-		results = await player.node.get_tracks(f'ytsearch:{data["song"]}')
-		return results["tracks"]
+	async def on_voice_state_update(self, member, before, after):
+		if member.id == self.user_id:
+			return
+		
+		if after.channel is None:
+			return
 
-	async def gettrackdata(self, player, track):
-		return {
-			"raw": self.getrawtrack(track),
-			"name": track.title,  			 	# track name
-			"url": track.uri, 				    # yt url
-			"duration": int(track.duration),		# track duration - integer
-			"channel": track.author,				# yt channel
-			"position": int(player.position)	# position timestamp - integer
-		}
+		player = self.lavalink.player_manager.get(int(after.channel.guild.id))
+		uses = self.sessions.get(str(member.id))
+		if uses:
+			if not after.channel:
+				self.sessions.pop(str(member.id))
+			else:
+				self.sessions.pop(str(member.id))
+				event = sockevents.Event(
+					uses["socketid"], 
+					{
+						"sid": uses["sid"],
+						"user": str(member.id),
+					},
+					self.socket
+				)
+
+				await self.socket.on__verifyUser(event)
+
+		if after.channel and player.channel_id == after.channel.id:
+			for i in after.channel.members:
+				session = self.sessions.get(str(i.id))
+				await self.socket.emit("newMemberJoin", {
+					"id": str(i.id),
+					"name": str(i.name),
+					"pfp": str(i.avatar_url),
+					"discrim": str(i.discriminator),
+				}, to = session["socketid"])
+		elif not after.channel or (before.channel and player.channel_id == before.channel.id):
+			for i in before.channel.members:
+				session = self.sessions.get(str(i.id))
+				await self.socket.emit("newMemberLeave", {
+					"id": str(i.id),
+					"name": str(i.name),
+					"pfp": str(i.avatar_url),
+					"discrim": str(i.discriminator),
+				}, to = session["socketid"])
 
 	def getrawtrack(self, track):
 		return {
@@ -107,65 +132,3 @@ class Client(commands.Bot):
 				"uri": track.uri
 			}
 		}
-
-	async def stopPlayer(self, player):
-		channel = self.get_channel(int(player.channel_id))
-		if len(channel.members) > 1:
-			ret = []
-			for i in channel.members:
-				ret.append(str(i.id))
-
-			await player.stop()
-			player.queue = []
-			await self.socket.emit("newStop", {
-				"members": ret
-			})
-
-	async def pausePlayer(self, player, boolean):
-		channel = self.get_channel(int(player.channel_id))
-		await player.set_pause(boolean)
-		if len(channel.members) > 1:
-			ret = []
-			for i in channel.members:
-				ret.append(str(i.id))
-			await self.socket.emit("newPause", {
-				"members": ret,
-				"pause": boolean
-			})
-
-	async def seekPlayer(self, data):
-		player = self.lavalink.player_manager.get(int(data['server_id']))
-		channel = self.get_channel(int(player.channel_id))
-		if len(channel.members) > 1:
-			ret = []
-			for i in channel.members:
-				ret.append(str(i.id))
-			
-			await player.set_pause(True)
-			await player.seek(int(data['seek']))
-			await player.set_pause(False)
-			await self.socket.emit("newSeek", {
-				"members": ret,
-				"seek": data['seek']
-			})
-
-	
-	async def on_voice_state_update(self, member, before, after):
-		if not after.channel:
-			vc = None
-			guild = None
-		else:
-			vc = {
-				"name": after.channel.name,
-				"id": str(after.channel.id)
-			}
-			guild = {
-				"name": after.channel.guild.name,
-				"id": str(after.channel.guild.id),
-				"icon": str(after.channel.guild.icon_url)
-			}
-		await self.socket.emit("newVoiceState", {
-			"member": str(member.id),
-			"vc": vc,
-			"guild": guild
-		})
