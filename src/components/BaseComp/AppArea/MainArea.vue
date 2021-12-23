@@ -90,6 +90,9 @@
 				<div class="songdiv">
 					<span class="searchresinfoname">{{ track.info.title }}</span>
 					<span class="searchresinfochannel">{{ track.info.author }}</span>
+					<span class="songrequester">
+						Requested by: {{ track.requester.name }}#{{ track.requester.discrim }}</span
+					>
 				</div>
 				<div class="searchrescontrols">
 					<span
@@ -249,6 +252,11 @@ export default {
 
 .searchresinfochannel {
 	color: #ffffffc4;
+}
+
+.songrequester {
+	color: #ffffffc4;
+	margin-top: 8px;
 }
 
 .songdiv {

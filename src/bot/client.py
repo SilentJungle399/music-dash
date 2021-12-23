@@ -1,8 +1,8 @@
 from typing import Dict
+from aiohttp.web_request import Request
 from discord.ext import commands
-import discord
-import logging, coloredlogs, sockevents, lavaclient, base64, lavalink, asyncio, time
-from classes import Session
+import logging, coloredlogs, sockevents, lavaclient, base64, asyncio, discord
+from classes import OAuth, Session
 from lavalink.models import DefaultPlayer
 from aiohttp import web
 
@@ -13,8 +13,12 @@ coloredlogs.install(
 )
 
 class Client(commands.Bot):
-	def __init__(self, token = None):
+	def __init__(self, token = None, client_id = None, client_secret = None, redirect_uri = None, **options):
 		self.token = token
+		self.client_id = client_id
+		self.client_secret = client_secret
+		self.redirect_uri = redirect_uri
+
 		if not self.token:
 			self.token = input("Enter your bot token: ")
 		
@@ -43,12 +47,30 @@ class Client(commands.Bot):
 			],
 		)
 
-		self.app = web.Application()
+		self.app = web.Application()	
 		aiologger = logging.getLogger('aiohttp.access')
 		aiologger.setLevel(logging.CRITICAL)
 
+		routes = [
+			web.get('/callback', self.handle_oauth),
+		]
+
+		if not options.get("dev"):
+			routes.extend([
+				web.get('/', self.send_html),
+				web.static("/js", "dist/js"),
+				web.static("/css", "dist/css"),
+				web.static("/favicon.ico", "dist")
+			])
+
+		self.app.add_routes(routes)
+
 		self.socket.attach(self.app)
 		self.loop.create_task(self.sync_positions())
+
+	async def send_html(self, r):
+		with open("dist/index.html", "r") as f:
+			return web.Response(text = f.read(), content_type='text/html')
 
 	def initiate(self):
 		self.run(self.token)
@@ -57,6 +79,27 @@ class Client(commands.Bot):
 		logging.info(f"Logged in as {self.user}")
 		
 		await web._run_app(self.app, port=3000)
+
+	async def handle_oauth(self, request: Request):
+		code = request.query.get("code")
+		if not code:
+			return web.Response(status=400)
+
+		oauth = OAuth(
+			client_id = self.client_id,
+			client_secret = self.client_secret,
+			redirect_uri = self.redirect_uri,
+			bot = self
+		)
+
+		token = await oauth.get_token(code)
+		user = await oauth.get_user(token)
+
+		resp = web.HTTPSeeOther(location="/")
+
+		resp.set_cookie("token", token["refresh_token"])
+
+		return resp
 
 	async def sync_positions(self):
 		while True:
@@ -129,8 +172,16 @@ class Client(commands.Bot):
 				}, to = session["socketid"])
 
 	def getrawtrack(self, track):
+		requester = self.get_user(int(track.requester))
+
 		return {
 			"track": track.track,
+			"requester": {
+				"id": str(requester.id),
+				"name": str(requester.name),
+				"pfp": str(requester.avatar_url),
+				"discrim": str(requester.discriminator),
+			} if requester else None,
 			"info": {
 				"identifier": track.identifier,
 				"isSeekable": track.is_seekable,

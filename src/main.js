@@ -4,7 +4,9 @@ import io from "socket.io-client";
 import VueSocketIO from "vue-socket.io";
 import NProgress from "nprogress";
 import store from "./handlers/store";
+import VueCookies from "vue-cookies";
 
+Vue.use(VueCookies);
 Vue.use(
 	new VueSocketIO({
 		connection: io(),

@@ -54,7 +54,7 @@ export default {
 				this.curnotif = null;
 			}
 			this.notif = msg;
-			document.getElementById("notif").style.zIndex = 1;
+			document.getElementById("notif").style.zIndex = 1000;
 			document.getElementById("notif").style.opacity = 1;
 			this.curnotif = setTimeout(function () {
 				document.getElementById("notif").style.opacity = 0;
@@ -79,39 +79,42 @@ export default {
 		},
 	},
 	mounted() {
-		// if (!this.loggedin) {
-		// 	if (this.$route.path === "/callback") {
-		// 		this.$socket.emit("validateCallback", {
-		// 			code: this.$route.query.code
-		// 		})
-		// 	} else {
-		// 		const token = window.localStorage.getItem("token")
-		// 		if (!token) {
-		// 			window.location.href = "https://discord.com/api/oauth2/authorize?client_id=740568766198448190&redirect_uri=http%3A%2F%2Flocalhost%3A8080%2Fcallback&response_type=code&scope=identify"
-		// 		}
-		// 	}
-		// }
+		const token = this.$cookies.get("token");
+		if (!token) {
+			window.location.href =
+				"https://discord.com/api/oauth2/authorize?client_id=740568766198448190&redirect_uri=http%3A%2F%2Flocalhost%3A8080%2Fcallback&response_type=code&scope=identify";
+			return;
+		}
 		progress.start("page");
 
-		this.$store.commit("setUser", "738362958253522976");
 		this.$store.commit("switchTab", "queue");
-		this.$store.commit("setSid", this.random(40));
 
-		this.$socket.emit("verifyUser", {
-			user: this.$store.state.user,
-			sid: this.$store.state.sid,
-		});
 		if (window.innerWidth > 1000) {
 			this.unsupported = false;
 		} else {
 			this.unsupported = true;
 		}
-
-		// if (this.$route.fullPath === "/") {
-		// 	progress.done();
-		// }
 	},
 	sockets: {
+		error(data) {
+			if (data.redirect) {
+				window.location.href = data.redirect;
+			} else {
+				this.makealert(data.message);
+			}
+		},
+		userResponse(data) {
+			this.$store.commit("setUser", data.id);
+			this.$store.commit("setSid", this.random(40));
+			this.$cookies.set("token", data.refresh_token);
+
+			this.makealert(`Logged in as ${data.username}#${data.discriminator}`);
+
+			this.$socket.emit("verifyUser", {
+				user: this.$store.state.user,
+				sid: this.$store.state.sid,
+			});
+		},
 		callbackValidation(data) {
 			if (data.valid) {
 				window.localStorage.set("token", data.token);
@@ -140,14 +143,11 @@ export default {
 		},
 		connect() {
 			console.log("Connected to socket!");
-			this.$store.commit("setUser", "505606993034215434");
-			this.$store.commit("switchTab", "queue");
-			this.$store.commit("setSid", this.random(40));
-
-			this.$socket.emit("verifyUser", {
-				user: this.$store.state.user,
-				sid: this.$store.state.sid,
+			const token = this.$cookies.get("token");
+			this.$socket.emit("getUser", {
+				refresh_token: token,
 			});
+			this.$store.commit("switchTab", "queue");
 		},
 		disconnect() {
 			progress.start("page");

@@ -26,7 +26,9 @@
 					<span class="discrim"
 						>#{{
 							$store.state.voice.channel.name
-								? $store.state.voice.channel.name
+								? $store.state.voice.channel.name.length > 10
+									? $store.state.voice.channel.name.substring(0, 15) + "..."
+									: $store.state.voice.channel.name
 								: "invalid-channel "
 						}}</span
 					>

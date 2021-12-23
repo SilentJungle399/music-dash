@@ -4,7 +4,55 @@ import typing
 from time import time
 from random import randrange
 
+class OAuth:
+	def __init__(self, client_id: int, client_secret: str, redirect_uri: str, bot) -> None:
+		self.client_id = client_id
+		self.client_secret = client_secret
+		self.redirect_uri = redirect_uri
+		self.bot = bot
+	
+	async def get_token(self, code: str) -> dict:
 
+		data = {
+			'client_id': self.client_id,
+			'client_secret': self.client_secret,
+			'grant_type': 'authorization_code',
+			'code': code,
+			'redirect_uri': self.redirect_uri
+		}
+
+		headers = {
+			'Content-Type': 'application/x-www-form-urlencoded'
+		}
+
+		req = await self.bot.http._HTTPClient__session.post('https://discord.com/api/v8/oauth2/token', data=data, headers = headers)
+
+		return await req.json()
+
+	async def get_user(self, retdata: dict) -> dict:
+		headers = {
+			'Authorization': retdata['token_type'] + " " + retdata['access_token']
+		}
+
+		req = await self.bot.http._HTTPClient__session.get('https://discord.com/api/v8/users/@me', headers = headers)
+
+		return await req.json()
+
+	async def refresh_token(self, ref: str) -> dict:
+		data = {
+			'client_id': self.client_id,
+			'client_secret': self.client_secret,
+			'grant_type': 'refresh_token',
+			'refresh_token': ref,
+		}
+
+		headers = {
+			'Content-Type': 'application/x-www-form-urlencoded'
+		}
+
+		req = await self.bot.http._HTTPClient__session.post('https://discord.com/api/v8/oauth2/token', data=data, headers = headers)
+
+		return await req.json()
 
 class Session(typing.TypedDict):
 	socketid: str

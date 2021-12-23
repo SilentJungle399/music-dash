@@ -262,6 +262,7 @@ export default {
 			const emitData = {
 				progress: state ? 100 : 0,
 				guild: this.$store.state.voice.guild,
+				channel: this.$store.state.voice.channel,
 			};
 			this.$socket.emit("seek", emitData);
 			console.log("Emitting:", "seek", emitData);

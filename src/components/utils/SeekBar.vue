@@ -54,6 +54,7 @@ export default {
 			this.$socket.emit("seek", {
 				progress: perc,
 				guild: this.$store.state.voice.guild,
+				channel: this.$store.state.voice.channel,
 			});
 		},
 		removelistener(event) {
@@ -64,6 +65,7 @@ export default {
 			this.$socket.emit("seek", {
 				progress: perc,
 				guild: this.$store.state.voice.guild,
+				channel: this.$store.state.voice.channel,
 			});
 			this.dragging = false;
 		},

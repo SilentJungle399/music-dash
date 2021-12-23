@@ -1,3 +1,4 @@
+from classes import OAuth
 from lavalink.models import DefaultPlayer
 import socketio, logging, json, lavalink, discord, asyncio
 
@@ -46,11 +47,36 @@ class Server(socketio.AsyncServer):
 	async def pre__disconnect(self, sid):
 		self.log('Disconnected client', sid)
 
+	async def on__getUser(self, event: Event):
+		self.log('Get user', event.data)
+		
+		oauth = OAuth(
+			client_id = self.bot.client_id,
+			client_secret = self.bot.client_secret,
+			redirect_uri = self.bot.redirect_uri,
+			bot = self.bot
+		)
+
+		token = await oauth.refresh_token(event.data["refresh_token"])
+		if "error" in token:
+			return await event.reply('error', {
+				"redirect": "https://discord.com/api/oauth2/authorize?client_id=740568766198448190&redirect_uri=http%3A%2F%2Flocalhost%3A8080%2Fcallback&response_type=code&scope=identify"
+			})
+
+		user = await oauth.get_user(token)
+		user["refresh_token"] = token["refresh_token"]
+
+		await event.reply('userResponse', user)
+
 	async def on__seek(self, event: Event):
 		self.log('Seek', event.data)
 		player: DefaultPlayer = self.bot.lavalink.player_manager.get(int(event.data["guild"]["id"]))
 		if not player:
 			return
+		elif int(player.channel_id) != int(event.data["channel"]["id"]):
+			return await event.reply('error', {
+				"message": "You are not in the bot's voice channel."
+			})
 
 		pos = event.data["progress"]*player.current.duration/100
 
@@ -74,6 +100,10 @@ class Server(socketio.AsyncServer):
 		player: DefaultPlayer = self.bot.lavalink.player_manager.get(int(event.data["guild"]["id"]))
 		if not player:
 			return
+		elif int(player.channel_id) != int(event.data["channel"]["id"]):
+			return await event.reply('error', {
+				"message": "You are not in the bot's voice channel."
+			})
 
 		await player.seek(player.position + event.data["ff"]*1000)
 
@@ -82,6 +112,10 @@ class Server(socketio.AsyncServer):
 		player: DefaultPlayer = self.bot.lavalink.player_manager.get(int(event.data["guild"]["id"]))
 		if not player:
 			return
+		elif int(player.channel_id) != int(event.data["channel"]["id"]):
+			return await event.reply('error', {
+				"message": "You are not in the bot's voice channel."
+			})
 
 		await player.set_pause(event.data["state"])
 
@@ -100,6 +134,7 @@ class Server(socketio.AsyncServer):
 	async def on__playSongReq(self, event: Event):
 		self.log('Playing song', event.data)
 		player: DefaultPlayer = self.bot.lavalink.player_manager.get(int(event.data["guild"]["id"]))
+
 		if not player:
 			player = self.bot.lavalink.player_manager.create(int(event.data["guild"]["id"]))
 
@@ -108,6 +143,11 @@ class Server(socketio.AsyncServer):
 
 		if not player.is_connected:
 			await guild.change_voice_state(channel=channel)
+
+		elif int(player.channel_id) != int(event.data["channel"]["id"]):
+			return await event.reply('error', {
+				"message": "You are not in the bot's voice channel."
+			})
 
 		if not player.is_playing:
 			await player.play(event.data["song"], channel = channel, guild = guild)
@@ -130,6 +170,10 @@ class Server(socketio.AsyncServer):
 		player: DefaultPlayer = self.bot.lavalink.player_manager.get(int(event.data["guild"]["id"]))
 		if not player:
 			return
+		elif int(player.channel_id) != int(event.data["channel"]["id"]):
+			return await event.reply('error', {
+				"message": "You are not in the bot's voice channel."
+			})
 
 		player.queue.pop(event.data["song"])
 
@@ -148,8 +192,8 @@ class Server(socketio.AsyncServer):
 		else:
 			for guild in self.bot.guilds:
 				guild: discord.Guild = guild
-				member = guild.get_member(user.id)
-				if member.voice:
+				member = guild.get_member(int(user.id))
+				if member and member.voice:
 					perms = member.voice.channel.permissions_for(guild.get_member(self.bot.user.id))
 					if not (perms.connect and perms.speak):
 						return await event.reply('playerUpdate', {
